@@ -19,21 +19,22 @@ This is a simple web app built with React that demonstrates basic functionality 
 
 ```bash
 git clone https://github.com/your-username/solana-wallet-app.git
-
+```
 2. Navigate to the project directory:
 
 ```bash
 cd solana-wallet-app
+```
 
 3. Install dependencies:
 
 ```bash
 npm install
-
+```
 4. Run the app:
 ```bash
 npm start
-
+```
 
 ## Usage
 
