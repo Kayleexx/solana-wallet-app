@@ -1,4 +1,3 @@
-// import functionalities
 import './App.css';
 import {
   Connection,
@@ -60,115 +59,98 @@ const getProvider = (): PhantomProvider | undefined => {
   }
 };
 
+// ... (import statements and types)
+
 export default function App() {
-  // create state variable for the provider
   const [provider, setProvider] = useState<PhantomProvider | undefined>(
     undefined
   );
-
-  // create state variable for the phantom wallet key
   const [receiverPublicKey, setReceiverPublicKey] = useState<PublicKey | undefined>(
     undefined
   );
-
-  // create state variable for the sender wallet key
   const [senderKeypair, setSenderKeypair] = useState<Keypair | undefined>(
     undefined
   );
-
-  // create a state variable for our connection
   const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
-  
-  // connection to use with local solana test validator
-  // const connection = new Connection("http://127.0.0.1:8899", "confirmed");
 
-  // this is the function that runs whenever the component updates (e.g. render, refresh)
   useEffect(() => {
     const provider = getProvider();
-
-    // if the phantom provider exists, set this as the provider
     if (provider) setProvider(provider);
-    else setProvider(undefined);
   }, []);
 
-  /**
-   * @description creates a new KeyPair and airdrops 2 SOL into it.
-   * This function is called when the Create a New Solana Account button is clicked
-   */
   const createSender = async () => {
-    // create a new Keypair
+    try {
+      const senderKeypair = Keypair.generate();
+      console.log('Sender account: ', senderKeypair.publicKey.toString());
 
+      const airdropSignature = await connection.requestAirdrop(
+        senderKeypair.publicKey,
+        LAMPORTS_PER_SOL * 2
+      );
 
-    console.log('Sender account: ', senderKeypair!.publicKey.toString());
-    console.log('Airdropping 2 SOL to Sender Wallet');
+      await connection.confirmTransaction(airdropSignature);
+      console.log('Airdrop transaction signature:', airdropSignature);
+      console.log('Wallet Balance:', (await connection.getBalance(senderKeypair.publicKey)) / LAMPORTS_PER_SOL);
 
-    // save this new KeyPair into this state variable
-    setSenderKeypair(/*KeyPair here*/);
+      setSenderKeypair(senderKeypair);
+    } catch (error) {
+      console.error('Error creating sender:', error);
+    }
+  };
 
-    // request airdrop into this new account
-    
-
-    const latestBlockHash = await connection.getLatestBlockhash();
-
-    // now confirm the transaction
-
-    console.log('Wallet Balance: ' + (await connection.getBalance(senderKeypair!.publicKey)) / LAMPORTS_PER_SOL);
-  }
-
-  /**
-   * @description prompts user to connect wallet if it exists.
-   * This function is called when the Connect to Phantom Wallet button is clicked
-   */
   const connectWallet = async () => {
-    // @ts-ignore
-    const { solana } = window;
-
-    // checks if phantom wallet exists
-    if (solana) {
+    const provider = getProvider();
+    if (provider) {
       try {
-        // connect to phantom wallet and return response which includes the wallet public key
-
-        // save the public key of the phantom wallet to the state variable
-        setReceiverPublicKey(/*PUBLIC KEY*/);
+        const { publicKey } = await provider.connect();
+        console.log('Connected to Phantom Wallet. Public key:', publicKey.toBase58());
+        setReceiverPublicKey(publicKey);
       } catch (err) {
-        console.log(err);
+        console.error('Error connecting to Phantom Wallet:', err);
       }
     }
   };
 
-  /**
-   * @description disconnects wallet if it exists.
-   * This function is called when the disconnect wallet button is clicked
-   */
   const disconnectWallet = async () => {
-    // @ts-ignore
-    const { solana } = window;
-
-    // checks if phantom wallet exists
-    if (solana) {
+    const provider = getProvider();
+    if (provider) {
       try {
-        solana.disconnect();
+        await provider.disconnect();
         setReceiverPublicKey(undefined);
-        console.log("wallet disconnected")
+        console.log("Wallet disconnected");
       } catch (err) {
-        console.log(err);
+        console.error('Error disconnecting from Phantom Wallet:', err);
       }
     }
   };
 
-  /**
-   * @description transfer SOL from sender wallet to connected wallet.
-   * This function is called when the Transfer SOL to Phantom Wallet button is clicked
-   */
-  const transferSol = async () => {    
-    
-    // create a new transaction for the transfer
+  const transferSol = async () => {
+    try {
+      if (!senderKeypair || !receiverPublicKey) {
+        console.error('Sender KeyPair or Receiver Public Key missing');
+        return;
+      }
 
-    // send and confirm the transaction
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: senderKeypair.publicKey,
+          toPubkey: receiverPublicKey!,
+          lamports: LAMPORTS_PER_SOL,
+        })
+      );
 
-    console.log("transaction sent and confirmed");
-    console.log("Sender Balance: " + await connection.getBalance(senderKeypair!.publicKey) / LAMPORTS_PER_SOL);
-    console.log("Receiver Balance: " + await connection.getBalance(receiverPublicKey!) / LAMPORTS_PER_SOL);
+      const signature = await sendAndConfirmTransaction(
+        connection,
+        transaction,
+        [senderKeypair]
+      );
+
+      console.log('Transfer transaction signature:', signature);
+      console.log('Sender Balance:', (await connection.getBalance(senderKeypair.publicKey)) / LAMPORTS_PER_SOL);
+      console.log('Receiver Balance:', (await connection.getBalance(receiverPublicKey)) / LAMPORTS_PER_SOL);
+    } catch (error) {
+      console.error('Error transferring SOL:', error);
+    }
   };
 
   // HTML code for the app
@@ -176,61 +158,24 @@ export default function App() {
     <div className="App">
       <header className="App-header">
         <h2>Module 2 Assessment</h2>
-        <span className ="buttons">
-          <button
-            style={{
-              fontSize: "16px",
-              padding: "15px",
-              fontWeight: "bold",
-              borderRadius: "5px",
-            }}
-            onClick={createSender}
-          >
+        <span className="buttons">
+          <button className="button" onClick={createSender}>
             Create a New Solana Account
           </button>
           {provider && !receiverPublicKey && (
-            <button
-              style={{
-                fontSize: "16px",
-                padding: "15px",
-                fontWeight: "bold",
-                borderRadius: "5px",
-              }}
-              onClick={connectWallet}
-            >
+            <button className="button" onClick={connectWallet}>
               Connect to Phantom Wallet
             </button>
           )}
           {provider && receiverPublicKey && (
             <div>
-              <button
-                style={{
-                  fontSize: "16px",
-                  padding: "15px",
-                  fontWeight: "bold",
-                  borderRadius: "5px",
-                  position: "absolute",
-                  top: "28px",
-                  right: "28px"
-                }}
-                onClick={disconnectWallet}
-              >
+              <button className="button" onClick={disconnectWallet}>
                 Disconnect from Wallet
               </button>
+              <button className="button" onClick={transferSol}>
+                Transfer SOL to Phantom Wallet
+              </button>
             </div>
-          )}
-          {provider && receiverPublicKey && senderKeypair && (
-          <button
-            style={{
-              fontSize: "16px",
-              padding: "15px",
-              fontWeight: "bold",
-              borderRadius: "5px",
-            }}
-            onClick={transferSol}
-          >
-            Transfer SOL to Phantom Wallet
-          </button>
           )}
         </span>
         {!provider && (
